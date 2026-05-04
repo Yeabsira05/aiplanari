@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -40,18 +40,37 @@ export default function DashboardPage() {
       }
 
       try {
-        const res = await fetch("/api/canvas/deadlines", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        });
+        const CACHE_KEY = "canvas_deadlines_cache";
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-        const data = await res.json();
+        let canvasDeadlines: Deadline[] = [];
 
-        if (!res.ok) {
-          throw new Error(data.error || "Failed to fetch deadlines");
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { deadlines: cachedDeadlines, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TTL) {
+            canvasDeadlines = cachedDeadlines;
+          }
+        }
+
+        if (canvasDeadlines.length === 0) {
+          const res = await fetch("/api/canvas/deadlines", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to fetch deadlines");
+          }
+
+          canvasDeadlines = data.deadlines;
+          sessionStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify({ deadlines: canvasDeadlines, timestamp: Date.now() })
+          );
         }
 
         const local = getLocalDeadlines();
@@ -63,7 +82,7 @@ export default function DashboardPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const allDeadlines = [...data.deadlines, ...local];
+        const allDeadlines = [...canvasDeadlines, ...local];
 
         const filtered = allDeadlines.filter((deadline) => {
           const dueDate = new Date(deadline.dueDate);
@@ -102,22 +121,24 @@ export default function DashboardPage() {
     }, 3000);
   }
 
-  const filteredDeadlines = deadlines.filter((deadline) => {
-    const daysLeft = Math.ceil(
-      (new Date(deadline.dueDate).getTime() - new Date().getTime()) /
-        (1000 * 60 * 60 * 24)
+  const sortedDeadlines = useMemo(() => {
+    const now = Date.now();
+    const filtered = deadlines.filter((deadline) => {
+      if (filter === "assignment") return deadline.type === "assignment";
+      if (filter === "exam") return deadline.type === "exam";
+      if (filter === "urgent") {
+        const daysLeft = Math.ceil(
+          (new Date(deadline.dueDate).getTime() - now) / (1000 * 60 * 60 * 24)
+        );
+        return daysLeft <= 7;
+      }
+      return true;
+    });
+
+    return filtered.sort(
+      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
     );
-
-    if (filter === "assignment") return deadline.type === "assignment";
-    if (filter === "exam") return deadline.type === "exam";
-    if (filter === "urgent") return daysLeft <= 7;
-
-    return true;
-  });
-
-  const sortedDeadlines = [...filteredDeadlines].sort(
-    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-  );
+  }, [deadlines, filter]);
 
   async function handleGenerateStudyPlan() {
     if (sortedDeadlines.length === 0) {

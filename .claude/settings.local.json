@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm show *)",
+      "Bash(nvm --version)",
+      "Bash(fnm --version)",
+      "Bash(winget install *)",
+      "PowerShell(winget install *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Directory)",
+      "Bash(Select-Object Name)"
+    ]
+  }
+}

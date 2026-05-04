@@ -39,34 +39,30 @@ export async function POST(request: Request) {
 
     const courses: CanvasCourse[] = await coursesRes.json();
 
-    const allDeadlines = [];
+    const results = await Promise.all(
+      courses.map(async (course) => {
+        const assignmentsRes = await fetch(
+          `${canvasBaseUrl}/api/v1/courses/${course.id}/assignments?per_page=50`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-    for (const course of courses) {
-      const assignmentsRes = await fetch(
-        `${canvasBaseUrl}/api/v1/courses/${course.id}/assignments?per_page=50`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+        if (!assignmentsRes.ok) return [];
 
-      if (!assignmentsRes.ok) continue;
+        const assignments: CanvasAssignment[] = await assignmentsRes.json();
 
-      const assignments: CanvasAssignment[] = await assignmentsRes.json();
+        return assignments
+          .filter((a) => a.due_at)
+          .map((a) => ({
+            id: `${course.id}-${a.id}`,
+            course: course.name,
+            title: a.name,
+            dueDate: a.due_at,
+            type: "assignment",
+          }));
+      })
+    );
 
-      const courseDeadlines = assignments
-        .filter((assignment) => assignment.due_at)
-        .map((assignment) => ({
-          id: `${course.id}-${assignment.id}`,
-          course: course.name,
-          title: assignment.name,
-          dueDate: assignment.due_at,
-          type: "assignment",
-        }));
-
-      allDeadlines.push(...courseDeadlines);
-    }
+    const allDeadlines = results.flat();
 
     return NextResponse.json({ deadlines: allDeadlines });
   } catch (error) {
