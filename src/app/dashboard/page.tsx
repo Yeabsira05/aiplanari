@@ -3,284 +3,288 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
+import AppHeader from "@/components/AppHeader";
 import DeadlineCard from "@/components/DeadlineCard";
 import { getLocalDeadlines } from "@/lib/localDeadlines";
+import { getDaysLeft } from "@/lib/dates";
+import type { Deadline } from "@/lib/types";
 
-type Deadline = {
-  id: string;
-  course: string;
-  title: string;
-  dueDate: string;
-  type: "assignment" | "exam";
-};
+type Filter = "all" | "assignment" | "exam" | "urgent";
 
 export default function DashboardPage() {
   const router = useRouter();
 
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prioritizing, setPrioritizing] = useState(false);
+  const [aiStrategy, setAiStrategy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  const [filter, setFilter] = useState<
-    "all" | "assignment" | "exam" | "urgent"
-  >("all");
-
+  const [filter, setFilter] = useState<Filter>("all");
+  const [selectedCourse, setSelectedCourse] = useState("All");
   const [plan, setPlan] = useState("");
   const [generatingPlan, setGeneratingPlan] = useState(false);
 
   useEffect(() => {
-    async function fetchCanvasDeadlines() {
+    async function load() {
       const token = localStorage.getItem("canvas_token");
-
-      if (!token) {
-        router.push("/connect-canvas");
-        return;
-      }
+      if (!token) { router.push("/connect-canvas"); return; }
 
       try {
         const CACHE_KEY = "canvas_deadlines_cache";
-        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-        let canvasDeadlines: Deadline[] = [];
+        const CACHE_TTL = 5 * 60 * 1000;
+        let canvas: Deadline[] = [];
 
         const cached = sessionStorage.getItem(CACHE_KEY);
         if (cached) {
-          const { deadlines: cachedDeadlines, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL) {
-            canvasDeadlines = cachedDeadlines;
-          }
+          const { deadlines: cd, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TTL) canvas = cd;
         }
 
-        if (canvasDeadlines.length === 0) {
+        if (!canvas.length) {
           const res = await fetch("/api/canvas/deadlines", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token }),
           });
-
           const data = await res.json();
-
-          if (!res.ok) {
-            throw new Error(data.error || "Failed to fetch deadlines");
-          }
-
-          canvasDeadlines = data.deadlines;
-          sessionStorage.setItem(
-            CACHE_KEY,
-            JSON.stringify({ deadlines: canvasDeadlines, timestamp: Date.now() })
-          );
+          if (!res.ok) throw new Error(data.error);
+          canvas = data.deadlines;
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ deadlines: canvas, timestamp: Date.now() }));
         }
 
         const local = getLocalDeadlines();
+        const done: string[] = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
+        const today = new Date(); today.setHours(0, 0, 0, 0);
 
-        const doneIds = JSON.parse(
-          localStorage.getItem("done_deadlines") || "[]"
-        );
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const allDeadlines = [...canvasDeadlines, ...local];
-
-        const filtered = allDeadlines.filter((deadline) => {
-          const dueDate = new Date(deadline.dueDate);
-          dueDate.setHours(0, 0, 0, 0);
-
-          return dueDate >= today && !doneIds.includes(deadline.id);
+        const all = [...canvas, ...local].filter((d) => {
+          const due = new Date(d.dueDate); due.setHours(0, 0, 0, 0);
+          return due >= today && !done.includes(d.id);
         });
 
-        setDeadlines(filtered);
-      } catch (err) {
-        setError("Could not load Canvas deadlines. Check your token.");
-      } finally {
+        setDeadlines(all);
+        setLoading(false);
+
+        // AI prioritize in background
+        if (all.length) {
+          setPrioritizing(true);
+          const openaiKey = localStorage.getItem("openai_key") || "";
+          try {
+            const res = await fetch("/api/ai/prioritize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deadlines: all, openaiKey }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.priorities) {
+                type P = { id: string; urgencyScore: number; reason: string; studyTip: string };
+                const map = new Map(data.priorities.map((p: P) => [p.id, { urgencyScore: p.urgencyScore, aiReason: p.reason, aiStudyTip: p.studyTip }]));
+                setDeadlines((prev) => prev.map((d) => { const ai = map.get(d.id) as Partial<Deadline> | undefined; return ai ? { ...d, ...ai } : d; }));
+                if (data.overallStrategy) setAiStrategy(data.overallStrategy);
+              }
+            }
+          } catch { /* fail silently */ }
+          finally { setPrioritizing(false); }
+        }
+      } catch {
+        setError("Could not load deadlines. Check your Canvas token.");
         setLoading(false);
       }
     }
-
-    fetchCanvasDeadlines();
+    load();
   }, [router]);
 
-  function handleDisconnect() {
-    localStorage.removeItem("canvas_token");
-    router.push("/connect-canvas");
-  }
-
   function handleDone(id: string) {
-    const doneIds = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
-
-    localStorage.setItem("done_deadlines", JSON.stringify([...doneIds, id]));
-
-    setDeadlines((prev) => prev.filter((deadline) => deadline.id !== id));
-
-    setSuccess("Well done! Deadline completed 🎉");
-
-    setTimeout(() => {
-      setSuccess("");
-    }, 3000);
+    const done: string[] = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
+    localStorage.setItem("done_deadlines", JSON.stringify([...done, id]));
+    setDeadlines((prev) => prev.filter((d) => d.id !== id));
+    setSuccess("Marked as done!");
+    setTimeout(() => setSuccess(""), 3000);
   }
 
-  const sortedDeadlines = useMemo(() => {
+  const courseNames = useMemo(() => [...new Set(deadlines.map((d) => d.course))].sort(), [deadlines]);
+
+  const sorted = useMemo(() => {
     const now = Date.now();
-    const filtered = deadlines.filter((deadline) => {
-      if (filter === "assignment") return deadline.type === "assignment";
-      if (filter === "exam") return deadline.type === "exam";
-      if (filter === "urgent") {
-        const daysLeft = Math.ceil(
-          (new Date(deadline.dueDate).getTime() - now) / (1000 * 60 * 60 * 24)
-        );
-        return daysLeft <= 7;
-      }
-      return true;
-    });
+    return deadlines
+      .filter((d) => {
+        if (selectedCourse !== "All" && d.course !== selectedCourse) return false;
+        if (filter === "assignment") return d.type === "assignment";
+        if (filter === "exam") return d.type === "exam";
+        if (filter === "urgent") return Math.ceil((new Date(d.dueDate).getTime() - now) / 86400000) <= 7;
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.urgencyScore !== undefined && b.urgencyScore !== undefined) return b.urgencyScore - a.urgencyScore;
+        if (a.urgencyScore !== undefined) return -1;
+        if (b.urgencyScore !== undefined) return 1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
+  }, [deadlines, filter, selectedCourse]);
 
-    return filtered.sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-    );
-  }, [deadlines, filter]);
-
-  async function handleGenerateStudyPlan() {
-    if (sortedDeadlines.length === 0) {
-      alert("No deadlines to generate a study plan from.");
-      return;
-    }
-
-    setGeneratingPlan(true);
-    setPlan("");
-
+  async function handleGeneratePlan() {
+    if (!sorted.length) return;
+    setGeneratingPlan(true); setPlan("");
     try {
+      const openaiKey = localStorage.getItem("openai_key") || "";
       const res = await fetch("/api/study-plan", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ deadlines: sortedDeadlines }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deadlines: sorted, openaiKey }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to generate study plan");
-      }
-
+      if (!res.ok) throw new Error(data.error);
       setPlan(data.plan);
-    } catch (err) {
-      alert("Could not generate study plan.");
-    } finally {
-      setGeneratingPlan(false);
-    }
+    } catch { alert("Could not generate study plan."); }
+    finally { setGeneratingPlan(false); }
   }
 
+  // Stats
+  const urgentCount = deadlines.filter((d) => getDaysLeft(d.dueDate) <= 2).length;
+  const weekCount = deadlines.filter((d) => { const l = getDaysLeft(d.dueDate); return l >= 0 && l <= 7; }).length;
+
+  const filterOptions: { value: Filter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "assignment", label: "Assignments" },
+    { value: "exam", label: "Exams" },
+    { value: "urgent", label: "Urgent" },
+  ];
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 px-6 py-10">
-      <div className="mx-auto max-w-5xl">
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-4xl font-extrabold text-gray-900">
-                Dashboard
-              </h1>
+    <div className="min-h-screen bg-slate-50">
+      <AppHeader />
 
-              <p className="mt-2 text-gray-600">
-                Your upcoming Canvas deadlines and AI study alerts.
-              </p>
-            </div>
+      <div className="mx-auto max-w-4xl px-6 py-8">
 
-            <div className="flex gap-2">
-              <Link
-                href="/add-deadline"
-                className="rounded-xl bg-black px-4 py-2 font-semibold text-white hover:bg-gray-800"
-              >
-                + Add Exam
-              </Link>
-
-              <button
-                onClick={handleDisconnect}
-                className="rounded-xl border px-4 py-2 font-semibold text-gray-700 hover:bg-gray-100"
-              >
-                Disconnect
-              </button>
-            </div>
-          </div>
-
-          {/* FILTERS */}
-          <div className="mt-6 flex flex-wrap gap-2">
+        {/* Stats */}
+        {!loading && !error && (
+          <div className="mb-8 grid grid-cols-3 gap-4">
             {[
-              { label: "All", value: "all" },
-              { label: "Assignments", value: "assignment" },
-              { label: "Exams / Tests", value: "exam" },
-              { label: "Urgent", value: "urgent" },
-            ].map((item) => (
+              { label: "Upcoming", value: deadlines.length, color: "text-slate-900" },
+              { label: "This week", value: weekCount, color: "text-amber-600" },
+              { label: "Urgent", value: urgentCount, color: "text-red-600" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
+                <p className="mt-0.5 text-sm text-slate-500">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Focus today */}
+        {!loading && !error && sorted.length > 0 && (
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Focus today</p>
+              <p className="mt-0.5 truncate font-bold text-slate-900">{sorted[0].course}</p>
+              <p className="mt-0.5 text-sm text-slate-500 truncate">{sorted[0].title} · {getDaysLeft(sorted[0].dueDate) <= 0 ? "due today" : `${getDaysLeft(sorted[0].dueDate)}d left`}</p>
+            </div>
+            <Link
+              href="/learn"
+              className="shrink-0 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+            >
+              Study now →
+            </Link>
+          </div>
+        )}
+
+        {/* AI strategy */}
+        {aiStrategy && (
+          <div className="mb-6 flex gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+            <span className="text-lg">✦</span>
+            <p className="text-sm text-indigo-800"><span className="font-semibold">AI strategy: </span>{aiStrategy}</p>
+          </div>
+        )}
+        {prioritizing && !aiStrategy && (
+          <div className="mb-6 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-600">
+            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-500" />
+            AI is prioritizing your assignments…
+          </div>
+        )}
+
+        {/* Filters */}
+        {!loading && (
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            {courseNames.length > 0 && (
+              <select
+                value={selectedCourse}
+                onChange={(e) => setSelectedCourse(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 outline-none hover:bg-slate-50 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="All">All courses</option>
+                {courseNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
+            {filterOptions.map((f) => (
               <button
-                key={item.value}
-                onClick={() => setFilter(item.value as typeof filter)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  filter === item.value
-                    ? "bg-black text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                  filter === f.value
+                    ? "bg-slate-900 text-white"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                {item.label}
+                {f.label}
               </button>
             ))}
-          </div>
-
-          {/* AI BUTTON (only after loading) */}
-          {!loading && (
             <button
-              onClick={handleGenerateStudyPlan}
-              disabled={generatingPlan || sortedDeadlines.length === 0}
-              className="mt-6 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+              onClick={handleGeneratePlan}
+              disabled={generatingPlan || !sorted.length}
+              className="ml-auto rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             >
-              {generatingPlan
-                ? "Generating study plan..."
-                : "Generate AI Study Plan"}
+              {generatingPlan ? "Generating…" : "✦ AI Study Plan"}
             </button>
-          )}
+          </div>
+        )}
 
-          {/* AI RESULT */}
-          {plan && (
-            <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-              <h2 className="text-xl font-bold text-gray-900">
-                AI Study Plan
-              </h2>
-
-              <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                {plan}
-              </pre>
+        {/* Study plan */}
+        {plan && (
+          <div className="mb-6 rounded-2xl border border-indigo-100 bg-indigo-50 p-6">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-indigo-900">AI Study Plan</p>
+              <button onClick={() => setPlan("")} className="text-xs text-indigo-400 hover:text-indigo-600">Dismiss</button>
             </div>
-          )}
+            <pre className="mt-3 whitespace-pre-wrap text-sm leading-7 text-indigo-800">{plan}</pre>
+          </div>
+        )}
 
-          {success && (
-            <div className="mt-6 rounded-xl bg-green-100 px-4 py-3 font-semibold text-green-800">
-              {success}
-            </div>
-          )}
+        {success && (
+          <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            {success}
+          </div>
+        )}
 
-          {loading && (
-            <p className="mt-8 text-gray-600">Loading Canvas data...</p>
-          )}
+        {/* Loading */}
+        {loading && (
+          <div className="flex flex-col items-center py-24 text-slate-400">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-500" />
+            <p className="text-sm">Fetching your Canvas deadlines…</p>
+          </div>
+        )}
 
-          {error && <p className="mt-8 text-red-600">{error}</p>}
+        {error && (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>
+        )}
 
-          {!loading && !error && sortedDeadlines.length === 0 && (
-            <p className="mt-8 rounded-xl bg-gray-100 p-4 text-gray-600">
-              No deadlines found.
+        {!loading && !error && sorted.length === 0 && (
+          <div className="flex flex-col items-center py-24 text-slate-400">
+            <span className="text-4xl">🎉</span>
+            <p className="mt-3 font-semibold text-slate-600">
+              {selectedCourse !== "All" ? "No deadlines in this course." : "Nothing due — enjoy the break!"}
             </p>
-          )}
+          </div>
+        )}
 
-          <section className="mt-8 grid gap-4">
-            {sortedDeadlines.map((deadline) => (
-              <DeadlineCard
-                key={deadline.id}
-                deadline={deadline}
-                onDone={handleDone}
-              />
-            ))}
-          </section>
+        {/* Card list */}
+        <div className="space-y-3">
+          {sorted.map((d) => (
+            <DeadlineCard key={d.id} deadline={d} onDone={handleDone} />
+          ))}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

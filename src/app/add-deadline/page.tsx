@@ -2,68 +2,62 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getLocalDeadlines, saveLocalDeadlines } from "@/lib/localDeadlines";
 
 export default function AddDeadlinePage() {
+  const router = useRouter();
   const [course, setCourse] = useState("");
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
 
-  const router = useRouter();
-
   function handleAdd() {
-    if (!course || !title || !dueDate) {
-      alert("Fill all fields");
+    if (!course.trim() || !title.trim() || !dueDate) {
+      alert("Please fill in all fields.");
       return;
     }
-
-    const newDeadline = {
-      id: Date.now().toString(),
-      course,
-      title,
-      dueDate,
-      type: "exam" as const,
-    };
-
     const existing = getLocalDeadlines();
-    saveLocalDeadlines([...existing, newDeadline]);
-
+    saveLocalDeadlines([
+      ...existing,
+      { id: Date.now().toString(), course: course.trim(), title: title.trim(), dueDate, type: "exam" },
+    ]);
     router.push("/dashboard");
   }
 
+  const inputClass =
+    "w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold">Add Exam/Test</h1>
-
-        <input
-          placeholder="Course"
-          value={course}
-          onChange={(e) => setCourse(e.target.value)}
-          className="mt-4 w-full border px-3 py-2 rounded"
-        />
-
-        <input
-          placeholder="Title (e.g. Final Exam)"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-4 w-full border px-3 py-2 rounded"
-        />
-
-        <input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          className="mt-4 w-full border px-3 py-2 rounded"
-        />
-
-        <button
-          onClick={handleAdd}
-          className="mt-4 w-full bg-black text-white py-2 rounded"
-        >
-          Add
-        </button>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="border-b border-slate-200 bg-white px-6 py-4 flex items-center gap-4">
+        <Link href="/dashboard" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+          ← Dashboard
+        </Link>
+        <span className="text-base font-extrabold tracking-tight text-slate-900">Add exam / test</span>
       </div>
-    </main>
+
+      <div className="flex flex-1 items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Course</label>
+            <input value={course} onChange={(e) => setCourse(e.target.value)} placeholder="e.g. Linear Algebra" className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Title</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Final Exam" className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Due date</label>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
+          </div>
+          <button
+            onClick={handleAdd}
+            className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+          >
+            Add to dashboard
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

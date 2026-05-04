@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
+import { fetchAllPages } from "@/lib/canvas-fetch";
 
 type CanvasCourse = {
   id: number;
   name: string;
+  workflow_state?: string;
+  access_restricted_by_date?: boolean;
 };
 
 type CanvasAssignment = {
   id: number;
   name: string;
   due_at: string | null;
+  html_url: string;
+  description: string | null;
 };
 
 export async function POST(request: Request) {
@@ -16,56 +21,51 @@ export async function POST(request: Request) {
     const { token } = await request.json();
 
     if (!token) {
-      return NextResponse.json(
-        { error: "Missing Canvas token" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing Canvas token" }, { status: 400 });
     }
 
-    const canvasBaseUrl = "https://reykjavik.instructure.com";  
-    
-    const coursesRes = await fetch(`${canvasBaseUrl}/api/v1/courses?per_page=20`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const canvasBaseUrl = "https://reykjavik.instructure.com";
 
-    if (!coursesRes.ok) {
-      return NextResponse.json(
-        { error: "Could not fetch Canvas courses" },
-        { status: 401 }
-      );
+    const allCourses = await fetchAllPages<CanvasCourse>(
+      `${canvasBaseUrl}/api/v1/courses?per_page=50`,
+      token
+    );
+
+    if (!allCourses.length) {
+      return NextResponse.json({ error: "Could not fetch Canvas courses" }, { status: 401 });
     }
 
-    const courses: CanvasCourse[] = await coursesRes.json();
+    const courses = allCourses.filter(
+      (c) => c.id && c.name && c.workflow_state !== "deleted" && !c.access_restricted_by_date
+    );
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       courses.map(async (course) => {
-        const assignmentsRes = await fetch(
-          `${canvasBaseUrl}/api/v1/courses/${course.id}/assignments?per_page=50`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const assignments = await fetchAllPages<CanvasAssignment>(
+          `${canvasBaseUrl}/api/v1/courses/${course.id}/assignments?per_page=50&order_by=due_at`,
+          token
         );
 
-        if (!assignmentsRes.ok) return [];
-
-        const assignments: CanvasAssignment[] = await assignmentsRes.json();
-
         return assignments
-          .filter((a) => a.due_at)
+          .filter((a) => a.due_at && a.name)
           .map((a) => ({
             id: `${course.id}-${a.id}`,
             course: course.name,
             title: a.name,
-            dueDate: a.due_at,
-            type: "assignment",
+            dueDate: a.due_at as string,
+            type: "assignment" as const,
+            url: a.html_url || undefined,
+            description: a.description || undefined,
           }));
       })
     );
 
-    const allDeadlines = results.flat();
+    const deadlines = results
+      .filter((r): r is PromiseFulfilledResult<typeof r extends PromiseFulfilledResult<infer V> ? V : never> => r.status === "fulfilled")
+      .flatMap((r) => r.value);
 
-    return NextResponse.json({ deadlines: allDeadlines });
-  } catch (error) {
+    return NextResponse.json({ deadlines });
+  } catch {
     return NextResponse.json(
       { error: "Something went wrong fetching Canvas data" },
       { status: 500 }

@@ -8,7 +8,15 @@
       "Bash(winget install *)",
       "PowerShell(winget install *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Planari\\\\aiplanari\" -Recurse -Directory -Depth 2)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Read(//c/Users/bjark/Documents/HrVerkefni/Nyskopum/Planari/aiplanari/**)",
+      "Read(//mnt/c/Users/bjark/Documents/HrVerkefni/Nyskopum/Planari/**)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
     ]
   }
 }
