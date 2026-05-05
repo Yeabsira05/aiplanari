@@ -16,7 +16,8 @@
       "Read(//c/Users/bjark/Documents/HrVerkefni/Nyskopum/Planari/aiplanari/**)",
       "Read(//mnt/c/Users/bjark/Documents/HrVerkefni/Nyskopum/Planari/**)",
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Depth 1 -File)"
     ]
   }
 }
