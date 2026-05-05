@@ -14,9 +14,9 @@ function stripHtml(html: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { title, content, contentType, courseName, openaiKey } = await request.json();
+    const { title, content, contentType, courseName } = await request.json();
 
-    const apiKey = process.env.OPENAI_API_KEY || openaiKey;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "No API key" }, { status: 400 });
     }

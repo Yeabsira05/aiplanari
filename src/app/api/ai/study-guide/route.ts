@@ -6,9 +6,9 @@ type Module = { id: number; name: string; position: number; items: ModuleItem[] 
 
 export async function POST(request: Request) {
   try {
-    const { courseName, modules, openaiKey } = await request.json();
+    const { courseName, modules } = await request.json();
 
-    const apiKey = process.env.OPENAI_API_KEY || openaiKey;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "No API key provided" }, { status: 400 });
     }

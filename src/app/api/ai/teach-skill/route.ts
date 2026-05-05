@@ -3,11 +3,12 @@ import OpenAI from "openai";
 
 export async function POST(request: Request) {
   try {
-    const { courseName, skillName, openaiKey } = await request.json();
+    const { courseName, skillName } = await request.json();
 
-    if (!openaiKey) return NextResponse.json({ error: "OpenAI key required" }, { status: 400 });
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
 
-    const client = new OpenAI({ apiKey: openaiKey });
+    const client = new OpenAI({ apiKey });
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",

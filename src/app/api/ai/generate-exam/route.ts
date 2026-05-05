@@ -3,11 +3,12 @@ import OpenAI from "openai";
 
 export async function POST(request: Request) {
   try {
-    const { courseName, modules, examFiles, openaiKey } = await request.json();
+    const { courseName, modules, examFiles } = await request.json();
 
-    if (!openaiKey) return NextResponse.json({ error: "OpenAI key required" }, { status: 400 });
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
 
-    const client = new OpenAI({ apiKey: openaiKey });
+    const client = new OpenAI({ apiKey });
 
     const moduleList = (modules as { name: string; items: string[] }[])
       .map(m => `• ${m.name}: ${m.items.slice(0, 6).join(", ")}`)

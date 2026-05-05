@@ -42,11 +42,11 @@ export default function DeadlineCard({ deadline, onDone }: Props) {
     if (!deadline.description) return;
     setSummarizing(true);
     try {
-      const openaiKey = localStorage.getItem("openai_key") || "";
+
       const res = await fetch("/api/ai/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: deadline.title, course: deadline.course, description: deadline.description, openaiKey }),
+        body: JSON.stringify({ title: deadline.title, course: deadline.course, description: deadline.description }),
       });
       const data = await res.json();
       if (res.ok && data.tldr) { setSummary(data); setExpanded(true); }

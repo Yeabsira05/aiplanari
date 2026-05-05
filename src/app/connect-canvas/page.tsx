@@ -8,7 +8,6 @@ export default function ConnectCanvasPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleConnect() {
@@ -19,7 +18,6 @@ export default function ConnectCanvasPage() {
     setLoading(true);
     localStorage.setItem("student_name", name.trim());
     localStorage.setItem("canvas_token", token.trim());
-    if (openaiKey.trim()) localStorage.setItem("openai_key", openaiKey.trim());
     router.push("/dashboard");
   }
 
@@ -64,17 +62,6 @@ export default function ConnectCanvasPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-700">OpenAI key <span className="font-normal text-slate-400">(optional)</span></p>
-              <p className="mt-0.5 text-xs text-slate-400">Enables AI prioritization, summaries, and study notes.</p>
-              <input
-                type="password"
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                placeholder="sk-..."
-                className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              />
-            </div>
           </div>
 
           <button

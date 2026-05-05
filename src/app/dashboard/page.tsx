@@ -68,12 +68,11 @@ export default function DashboardPage() {
         // AI prioritize in background
         if (all.length) {
           setPrioritizing(true);
-          const openaiKey = localStorage.getItem("openai_key") || "";
           try {
             const res = await fetch("/api/ai/prioritize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ deadlines: all, openaiKey }),
+              body: JSON.stringify({ deadlines: all }),
             });
             if (res.ok) {
               const data = await res.json();
@@ -127,11 +126,10 @@ export default function DashboardPage() {
     if (!sorted.length) return;
     setGeneratingPlan(true); setPlan("");
     try {
-      const openaiKey = localStorage.getItem("openai_key") || "";
       const res = await fetch("/api/study-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deadlines: sorted, openaiKey }),
+        body: JSON.stringify({ deadlines: sorted }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

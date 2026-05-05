@@ -45,13 +45,13 @@ Steps:
 
 export async function POST(request: Request) {
   try {
-    const { deadlines, openaiKey } = await request.json();
+    const { deadlines } = await request.json();
 
     if (!deadlines || deadlines.length === 0) {
       return NextResponse.json({ error: "No deadlines provided" }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY || openaiKey;
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ plan: generateFallbackPlan(deadlines) });

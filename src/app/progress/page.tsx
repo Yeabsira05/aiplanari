@@ -98,8 +98,6 @@ export default function ProgressPage() {
   }
 
   async function startQuiz(course: Course, mod: Module) {
-    const openaiKey = localStorage.getItem("openai_key") || "";
-    if (!openaiKey) { alert("Add your OpenAI key on the Connect Canvas page to use quizzes."); return; }
     setGenQuiz(mod.id);
     const token = localStorage.getItem("canvas_token") || "";
 
@@ -120,7 +118,7 @@ export default function ProgressPage() {
     try {
       const res = await fetch("/api/ai/generate-quiz", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseName: course.name, moduleName: mod.name, content, openaiKey }),
+        body: JSON.stringify({ courseName: course.name, moduleName: mod.name, content }),
       });
       const d = await res.json();
       if (d.questions?.length) {
@@ -140,8 +138,6 @@ export default function ProgressPage() {
   async function startExam(course: Course) {
     const modules = modMap[course.id] || [];
     if (!modules.length) return;
-    const openaiKey = localStorage.getItem("openai_key") || "";
-    if (!openaiKey) { alert("Add your OpenAI key on the Connect Canvas page to use the mock exam."); return; }
     setGenExam(course.id);
 
     const examFiles = modules.flatMap(m =>
@@ -157,7 +153,7 @@ export default function ProgressPage() {
         body: JSON.stringify({
           courseName: course.name,
           modules: modules.map(m => ({ name: m.name, items: m.items.map(i => i.title) })),
-          examFiles, openaiKey,
+          examFiles,
         }),
       });
       const d = await res.json();

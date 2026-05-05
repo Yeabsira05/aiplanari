@@ -105,7 +105,7 @@ export default function StudyGuidePage() {
   async function generateAiNotes() {
     if (!itemContent || !selectedCourse) return;
     setLoadingAi(true); setTab("ai");
-    const openaiKey = localStorage.getItem("openai_key") || "";
+
     let content = "";
     if (itemContent.kind==="page") content = itemContent.body;
     else if (itemContent.kind==="assignment") content = itemContent.description;
@@ -113,7 +113,7 @@ export default function StudyGuidePage() {
     try {
       const res = await fetch("/api/ai/explain-content", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({title:itemContent.title, content, contentType:itemContent.kind, courseName:selectedCourse.name, openaiKey}),
+        body:JSON.stringify({title:itemContent.title, content, contentType:itemContent.kind, courseName:selectedCourse.name}),
       });
       const d = await res.json();
       if (d.summary) setAiNotes(d);

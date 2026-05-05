@@ -4,9 +4,9 @@ import type { Deadline } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
-    const { deadlines, openaiKey } = await request.json();
+    const { deadlines } = await request.json();
 
-    const apiKey = process.env.OPENAI_API_KEY || openaiKey;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "No API key provided" }, { status: 400 });
     }

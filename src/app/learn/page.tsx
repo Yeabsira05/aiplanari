@@ -90,7 +90,6 @@ export default function LearnPage() {
     setLoadingSkills(true);
     setSkills([]);
     const token = localStorage.getItem("canvas_token") || "";
-    const openaiKey = localStorage.getItem("openai_key") || "";
 
     let modules: Module[] = [];
     try {
@@ -102,26 +101,12 @@ export default function LearnPage() {
       modules = d.modules || [];
     } catch { /* skip */ }
 
-    if (!openaiKey) {
-      const fallback: Skill[] = modules.slice(0, 10).map((m, i) => ({
-        id: `mod-${m.id}`,
-        name: m.name,
-        description: "Study the content in this module.",
-        importance: i < 3 ? "high" : i < 7 ? "medium" : "low",
-        estimatedMinutes: 45,
-      }));
-      setSkills(fallback);
-      setLoadingSkills(false);
-      return;
-    }
-
     try {
       const r = await fetch("/api/ai/extract-skills", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseName: course.name,
           modules: modules.map(m => ({ name: m.name, items: m.items.map(i => i.title) })),
-          openaiKey,
         }),
       });
       const d = await r.json();
@@ -443,10 +428,9 @@ function LearningSession({
     if (cached) { setLesson(cached); return; }
     setLoading(true);
     setSkillStatus(course.id, skill.id, "learning");
-    const openaiKey = localStorage.getItem("openai_key") || "";
     fetch("/api/ai/teach-skill", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ courseName: course.name, skillName: skill.name, openaiKey }),
+      body: JSON.stringify({ courseName: course.name, skillName: skill.name }),
     }).then(r => r.json()).then(d => {
       if (d.explanation) { saveLesson(course.id, skill.id, d); setLesson(d); }
     }).finally(() => setLoading(false));

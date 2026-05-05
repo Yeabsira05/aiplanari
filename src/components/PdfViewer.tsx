@@ -70,11 +70,10 @@ export default function PdfViewer({
     setToolbar(null);
     setLoadingNote(true);
     try {
-      const openaiKey = localStorage.getItem("openai_key") ?? "";
       const res = await fetch("/api/ai/explain-selection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, title, courseName, openaiKey }),
+        body: JSON.stringify({ text, title, courseName }),
       });
       const data = await res.json();
       if (data.explanation) {
@@ -83,9 +82,7 @@ export default function PdfViewer({
           ...prev,
         ]);
       } else if (data.error) {
-        alert(data.error === "OpenAI key required"
-          ? "Add your OpenAI key on the Connect Canvas page to use AI explanations."
-          : "Could not explain selection.");
+        alert("Could not explain selection.");
       }
     } finally {
       setLoadingNote(false);
