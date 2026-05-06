@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import PdfViewer from "@/components/PdfViewer";
 import type { Deadline } from "@/lib/types";
 
 type ResourceType = "exam" | "assignment" | "notes" | "other";
@@ -102,6 +103,7 @@ export default function ResourcesPage() {
   // Browse filter state
   const [filterCourse, setFilterCourse] = useState("All");
   const [filterType, setFilterType] = useState<ResourceType | "all">("all");
+  const [viewingPdf, setViewingPdf] = useState<Resource | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -414,7 +416,15 @@ export default function ResourcesPage() {
                     {r.type}
                   </span>
                 </div>
-                <div className="mt-4">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {r.file_name?.toLowerCase().endsWith(".pdf") && (
+                    <button
+                      onClick={() => setViewingPdf(r)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+                    >
+                      View PDF
+                    </button>
+                  )}
                   <a
                     href={r.file_url}
                     target="_blank"
@@ -430,6 +440,33 @@ export default function ResourcesPage() {
           ))}
         </div>
       </div>
+
+      {/* PDF viewer modal */}
+      {viewingPdf && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-100">
+          {/* Modal header */}
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{viewingPdf.course_name}</p>
+              <p className="truncate font-bold text-slate-900">{viewingPdf.title}</p>
+            </div>
+            <button
+              onClick={() => setViewingPdf(null)}
+              className="ml-4 shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+          {/* Viewer */}
+          <div className="flex-1 overflow-hidden p-4">
+            <PdfViewer
+              url={viewingPdf.file_url}
+              title={viewingPdf.title}
+              courseName={viewingPdf.course_name}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

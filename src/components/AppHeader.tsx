@@ -21,6 +21,7 @@ export default function AppHeader() {
 
   const nav = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/calendar", label: "Calendar" },
     { href: "/learn", label: "Learn" },
     { href: "/progress", label: "Progress" },
     { href: "/study-guide", label: "Study Guide" },
@@ -54,12 +55,6 @@ export default function AppHeader() {
           {name && (
             <span className="hidden text-sm text-slate-400 sm:block">{name}</span>
           )}
-          <Link
-            href="/add-deadline"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            + Add exam
-          </Link>
           <button
             onClick={handleSignOut}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"

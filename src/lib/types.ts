@@ -6,6 +6,7 @@ export type Deadline = {
   type: "assignment" | "exam";
   url?: string;
   description?: string;
+  submissionTypes?: string[];
   urgencyScore?: number;
   aiReason?: string;
   aiStudyTip?: string;

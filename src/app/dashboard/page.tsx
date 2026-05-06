@@ -33,13 +33,14 @@ export default function DashboardPage() {
 
       try {
         const CACHE_KEY = "canvas_deadlines_cache";
+        const CACHE_VERSION = 2;
         const CACHE_TTL = 5 * 60 * 1000;
         let canvas: Deadline[] = [];
 
         const cached = sessionStorage.getItem(CACHE_KEY);
         if (cached) {
-          const { deadlines: cd, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_TTL) canvas = cd;
+          const { deadlines: cd, timestamp, v } = JSON.parse(cached);
+          if (v === CACHE_VERSION && Date.now() - timestamp < CACHE_TTL) canvas = cd;
         }
 
         if (!canvas.length) {
@@ -51,7 +52,7 @@ export default function DashboardPage() {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
           canvas = data.deadlines;
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ deadlines: canvas, timestamp: Date.now() }));
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ deadlines: canvas, timestamp: Date.now(), v: CACHE_VERSION }));
         }
 
         const local = getLocalDeadlines();

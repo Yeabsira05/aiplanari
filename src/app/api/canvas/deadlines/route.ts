@@ -14,6 +14,7 @@ type CanvasAssignment = {
   due_at: string | null;
   html_url: string;
   description: string | null;
+  submission_types: string[];
 };
 
 export async function POST(request: Request) {
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
             type: "assignment" as const,
             url: a.html_url || undefined,
             description: a.description || undefined,
+            submissionTypes: a.submission_types ?? [],
           }));
       })
     );
