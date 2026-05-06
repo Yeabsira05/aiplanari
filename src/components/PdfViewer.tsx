@@ -15,6 +15,32 @@ type AiNote = {
 };
 
 type Toolbar = { x: number; y: number; text: string };
+type Highlight = { phrase: string; importance: "high" | "medium" };
+
+// High = amber, medium = emerald
+const HL_STYLE: Record<string, string> = {
+  high:   "rgba(251,191,36,0.55)",
+  medium: "rgba(167,243,208,0.55)",
+};
+
+function applyHighlightsToContainer(container: HTMLElement, highlights: Highlight[]) {
+  if (!highlights.length) return;
+  const spans = container.querySelectorAll<HTMLElement>(
+    ".react-pdf__Page__textContent span[role='presentation'], .react-pdf__Page__textContent span"
+  );
+  spans.forEach(span => {
+    const text = span.textContent ?? "";
+    if (!text.trim()) return;
+    const match = highlights.find(h =>
+      text.toLowerCase().includes(h.phrase.toLowerCase())
+    );
+    if (match) {
+      span.style.backgroundColor = HL_STYLE[match.importance];
+      span.style.borderRadius = "2px";
+      span.style.mixBlendMode = "multiply";
+    }
+  });
+}
 
 export default function PdfViewer({
   url,
@@ -26,19 +52,22 @@ export default function PdfViewer({
   courseName: string;
 }) {
   const [numPages, setNumPages] = useState(0);
+  const [renderedPages, setRenderedPages] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [toolbar, setToolbar] = useState<Toolbar | null>(null);
   const [notes, setNotes] = useState<AiNote[]>([]);
   const [loadingNote, setLoadingNote] = useState(false);
   const [containerWidth, setContainerWidth] = useState(700);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [loadingHL, setLoadingHL] = useState(false);
+  const [hlDone, setHlDone] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
 
+  // Responsive width
   useEffect(() => {
     const el = pdfRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      setContainerWidth(entries[0].contentRect.width);
-    });
+    const ro = new ResizeObserver(entries => setContainerWidth(entries[0].contentRect.width));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -46,12 +75,49 @@ export default function PdfViewer({
   // Close toolbar on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-pdf-toolbar]")) setToolbar(null);
+      if (!(e.target as HTMLElement).closest("[data-pdf-toolbar]")) setToolbar(null);
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
+
+  function onDocumentLoad({ numPages: n }: { numPages: number }) {
+    setNumPages(n);
+  }
+
+  async function runHighlight() {
+    if (loadingHL || hlDone || !numPages) return;
+    setLoadingHL(true);
+    try {
+      const pdf = await pdfjs.getDocument(url).promise;
+      let fullText = "";
+      const limit = Math.min(numPages, 6);
+      for (let p = 1; p <= limit; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        fullText += content.items
+          .map((item) => ("str" in item ? (item as { str: string }).str : ""))
+          .join(" ") + "\n";
+      }
+      const res = await fetch("/api/ai/highlight-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: fullText.slice(0, 5000), courseName, title }),
+      });
+      const data = await res.json();
+      if (data.highlights?.length) { setHighlights(data.highlights); setHlDone(true); }
+    } catch { /* fail silently */ }
+    finally { setLoadingHL(false); }
+  }
+
+  // Re-apply highlights whenever a new page finishes rendering
+  useEffect(() => {
+    if (!highlights.length || !pdfRef.current) return;
+    const timer = setTimeout(() => {
+      if (pdfRef.current) applyHighlightsToContainer(pdfRef.current, highlights);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [highlights, renderedPages]);
 
   function handleMouseUp() {
     const sel = window.getSelection();
@@ -109,9 +175,38 @@ export default function PdfViewer({
         className="flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50"
         onMouseUp={handleMouseUp}
       >
+        {/* Highlight bar */}
+        {numPages > 0 && (
+          <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur-sm">
+            {loadingHL ? (
+              <>
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500" />
+                <span className="text-xs text-slate-500">AI is highlighting key terms…</span>
+              </>
+            ) : hlDone ? (
+              <>
+                <span className="text-xs text-slate-500">{highlights.length} terms highlighted</span>
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: HL_STYLE.high }} />
+                  Critical
+                  <span className="ml-2 inline-block h-2.5 w-2.5 rounded-sm" style={{ background: HL_STYLE.medium }} />
+                  Important
+                </span>
+              </>
+            ) : (
+              <button
+                onClick={runHighlight}
+                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+              >
+                <span>✦</span> Highlight with AI
+              </button>
+            )}
+          </div>
+        )}
+
         <Document
           file={url}
-          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          onLoadSuccess={onDocumentLoad}
           onLoadError={err => setLoadError(err.message)}
           loading={
             <div className="flex flex-col items-center gap-2 py-20 text-slate-400">
@@ -129,6 +224,7 @@ export default function PdfViewer({
               renderTextLayer
               renderAnnotationLayer={false}
               className="rounded-xl shadow-sm"
+              onRenderSuccess={() => setRenderedPages(p => p + 1)}
             />
           ))}
         </Document>
@@ -137,7 +233,7 @@ export default function PdfViewer({
       {/* AI notes panel */}
       {showPanel && (
         <div className="w-72 shrink-0 overflow-y-auto space-y-3 pr-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">AI highlights</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">AI notes</p>
           {loadingNote && (
             <div className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-600">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-500" />

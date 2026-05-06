@@ -24,6 +24,7 @@ export default function AppHeader() {
     { href: "/learn", label: "Learn" },
     { href: "/progress", label: "Progress" },
     { href: "/study-guide", label: "Study Guide" },
+    { href: "/resources", label: "Resources" },
   ];
 
   return (

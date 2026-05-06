@@ -9,12 +9,13 @@ import { getLocalDeadlines } from "@/lib/localDeadlines";
 import { getDaysLeft } from "@/lib/dates";
 import type { Deadline } from "@/lib/types";
 
-type Filter = "all" | "assignment" | "exam" | "urgent";
+type Filter = "all" | "assignment" | "exam" | "urgent" | "done";
 
 export default function DashboardPage() {
   const router = useRouter();
 
-  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [allDeadlines, setAllDeadlines] = useState<Deadline[]>([]);
+  const [doneIds, setDoneIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [prioritizing, setPrioritizing] = useState(false);
   const [aiStrategy, setAiStrategy] = useState("");
@@ -54,32 +55,33 @@ export default function DashboardPage() {
         }
 
         const local = getLocalDeadlines();
-        const done: string[] = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
+        const stored: string[] = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
         const today = new Date(); today.setHours(0, 0, 0, 0);
 
         const all = [...canvas, ...local].filter((d) => {
           const due = new Date(d.dueDate); due.setHours(0, 0, 0, 0);
-          return due >= today && !done.includes(d.id);
+          return due >= today;
         });
 
-        setDeadlines(all);
+        setAllDeadlines(all);
+        setDoneIds(stored);
         setLoading(false);
 
-        // AI prioritize in background
-        if (all.length) {
+        const active = all.filter((d) => !stored.includes(d.id));
+        if (active.length) {
           setPrioritizing(true);
           try {
             const res = await fetch("/api/ai/prioritize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ deadlines: all }),
+              body: JSON.stringify({ deadlines: active }),
             });
             if (res.ok) {
               const data = await res.json();
               if (data.priorities) {
                 type P = { id: string; urgencyScore: number; reason: string; studyTip: string };
                 const map = new Map(data.priorities.map((p: P) => [p.id, { urgencyScore: p.urgencyScore, aiReason: p.reason, aiStudyTip: p.studyTip }]));
-                setDeadlines((prev) => prev.map((d) => { const ai = map.get(d.id) as Partial<Deadline> | undefined; return ai ? { ...d, ...ai } : d; }));
+                setAllDeadlines((prev) => prev.map((d) => { const ai = map.get(d.id) as Partial<Deadline> | undefined; return ai ? { ...d, ...ai } : d; }));
                 if (data.overallStrategy) setAiStrategy(data.overallStrategy);
               }
             }
@@ -95,18 +97,27 @@ export default function DashboardPage() {
   }, [router]);
 
   function handleDone(id: string) {
-    const done: string[] = JSON.parse(localStorage.getItem("done_deadlines") || "[]");
-    localStorage.setItem("done_deadlines", JSON.stringify([...done, id]));
-    setDeadlines((prev) => prev.filter((d) => d.id !== id));
+    const updated = [...doneIds, id];
+    setDoneIds(updated);
+    localStorage.setItem("done_deadlines", JSON.stringify(updated));
     setSuccess("Marked as done!");
     setTimeout(() => setSuccess(""), 3000);
   }
 
-  const courseNames = useMemo(() => [...new Set(deadlines.map((d) => d.course))].sort(), [deadlines]);
+  function handleUndo(id: string) {
+    const updated = doneIds.filter((d) => d !== id);
+    setDoneIds(updated);
+    localStorage.setItem("done_deadlines", JSON.stringify(updated));
+  }
+
+  const active = useMemo(() => allDeadlines.filter((d) => !doneIds.includes(d.id)), [allDeadlines, doneIds]);
+  const doneList = useMemo(() => allDeadlines.filter((d) => doneIds.includes(d.id)), [allDeadlines, doneIds]);
+
+  const courseNames = useMemo(() => [...new Set(active.map((d) => d.course))].sort(), [active]);
 
   const sorted = useMemo(() => {
     const now = Date.now();
-    return deadlines
+    return active
       .filter((d) => {
         if (selectedCourse !== "All" && d.course !== selectedCourse) return false;
         if (filter === "assignment") return d.type === "assignment";
@@ -120,7 +131,7 @@ export default function DashboardPage() {
         if (b.urgencyScore !== undefined) return 1;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       });
-  }, [deadlines, filter, selectedCourse]);
+  }, [active, filter, selectedCourse]);
 
   async function handleGeneratePlan() {
     if (!sorted.length) return;
@@ -138,15 +149,15 @@ export default function DashboardPage() {
     finally { setGeneratingPlan(false); }
   }
 
-  // Stats
-  const urgentCount = deadlines.filter((d) => getDaysLeft(d.dueDate) <= 2).length;
-  const weekCount = deadlines.filter((d) => { const l = getDaysLeft(d.dueDate); return l >= 0 && l <= 7; }).length;
+  const urgentCount = active.filter((d) => getDaysLeft(d.dueDate) <= 2).length;
+  const weekCount = active.filter((d) => { const l = getDaysLeft(d.dueDate); return l >= 0 && l <= 7; }).length;
 
   const filterOptions: { value: Filter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "assignment", label: "Assignments" },
     { value: "exam", label: "Exams" },
     { value: "urgent", label: "Urgent" },
+    { value: "done", label: doneList.length ? `Done (${doneList.length})` : "Done" },
   ];
 
   return (
@@ -159,7 +170,7 @@ export default function DashboardPage() {
         {!loading && !error && (
           <div className="mb-8 grid grid-cols-3 gap-4">
             {[
-              { label: "Upcoming", value: deadlines.length, color: "text-slate-900" },
+              { label: "Upcoming", value: active.length, color: "text-slate-900" },
               { label: "This week", value: weekCount, color: "text-amber-600" },
               { label: "Urgent", value: urgentCount, color: "text-red-600" },
             ].map((s) => (
@@ -172,7 +183,7 @@ export default function DashboardPage() {
         )}
 
         {/* Focus today */}
-        {!loading && !error && sorted.length > 0 && (
+        {!loading && !error && sorted.length > 0 && filter !== "done" && (
           <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Focus today</p>
@@ -189,13 +200,13 @@ export default function DashboardPage() {
         )}
 
         {/* AI strategy */}
-        {aiStrategy && (
+        {aiStrategy && filter !== "done" && (
           <div className="mb-6 flex gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
             <span className="text-lg">✦</span>
             <p className="text-sm text-indigo-800"><span className="font-semibold">AI strategy: </span>{aiStrategy}</p>
           </div>
         )}
-        {prioritizing && !aiStrategy && (
+        {prioritizing && !aiStrategy && filter !== "done" && (
           <div className="mb-6 flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-600">
             <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-500" />
             AI is prioritizing your assignments…
@@ -205,7 +216,7 @@ export default function DashboardPage() {
         {/* Filters */}
         {!loading && (
           <div className="mb-6 flex flex-wrap items-center gap-2">
-            {courseNames.length > 0 && (
+            {courseNames.length > 0 && filter !== "done" && (
               <select
                 value={selectedCourse}
                 onChange={(e) => setSelectedCourse(e.target.value)}
@@ -228,13 +239,15 @@ export default function DashboardPage() {
                 {f.label}
               </button>
             ))}
-            <button
-              onClick={handleGeneratePlan}
-              disabled={generatingPlan || !sorted.length}
-              className="ml-auto rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              {generatingPlan ? "Generating…" : "✦ AI Study Plan"}
-            </button>
+            {filter !== "done" && (
+              <button
+                onClick={handleGeneratePlan}
+                disabled={generatingPlan || !sorted.length}
+                className="ml-auto rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+              >
+                {generatingPlan ? "Generating…" : "✦ AI Study Plan"}
+              </button>
+            )}
           </div>
         )}
 
@@ -255,7 +268,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Loading */}
         {loading && (
           <div className="flex flex-col items-center py-24 text-slate-400">
             <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-500" />
@@ -267,7 +279,35 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</div>
         )}
 
-        {!loading && !error && sorted.length === 0 && (
+        {/* Done list */}
+        {!loading && filter === "done" && (
+          doneList.length === 0 ? (
+            <p className="py-20 text-center text-sm text-slate-400">Nothing marked as done yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {doneList.map((d) => (
+                <div key={d.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{d.course}</p>
+                    <p className="mt-0.5 font-semibold text-slate-400 line-through">{d.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {new Date(d.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleUndo(d.id)}
+                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors"
+                  >
+                    Undo
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Active deadline list */}
+        {!loading && !error && filter !== "done" && sorted.length === 0 && (
           <div className="flex flex-col items-center py-24 text-slate-400">
             <span className="text-4xl">🎉</span>
             <p className="mt-3 font-semibold text-slate-600">
@@ -276,12 +316,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Card list */}
-        <div className="space-y-3">
-          {sorted.map((d) => (
-            <DeadlineCard key={d.id} deadline={d} onDone={handleDone} />
-          ))}
-        </div>
+        {!loading && filter !== "done" && (
+          <div className="space-y-3">
+            {sorted.map((d) => (
+              <DeadlineCard key={d.id} deadline={d} onDone={handleDone} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

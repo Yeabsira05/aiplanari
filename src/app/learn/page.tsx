@@ -433,7 +433,7 @@ function LearningSession({
       body: JSON.stringify({ courseName: course.name, skillName: skill.name }),
     }).then(r => r.json()).then(d => {
       if (d.explanation) { saveLesson(course.id, skill.id, d); setLesson(d); }
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [course.id, course.name, skill.id, skill.name]);
 
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");

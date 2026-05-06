@@ -17,7 +17,12 @@
       "Read(//mnt/c/Users/bjark/Documents/HrVerkefni/Nyskopum/Planari/**)",
       "Bash(npx tsc *)",
       "Bash(npm run *)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Depth 1 -File)"
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\" -Depth 1 -File)",
+      "WebSearch",
+      "Bash(npx playwright *)",
+      "Bash(node -e ' *)",
+      "Bash(del \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\\\\piazza-login-debug.png\")",
+      "Bash(npm uninstall *)"
     ]
   }
 }

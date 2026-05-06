@@ -36,12 +36,20 @@ Return JSON with exactly these keys:
     });
 
     const data = JSON.parse(completion.choices[0].message.content ?? "{}");
+
+    function toStr(val: unknown): string {
+      if (typeof val === "string") return val;
+      if (Array.isArray(val)) return val.join("\n");
+      if (val && typeof val === "object") return Object.values(val).join("\n\n");
+      return String(val ?? "");
+    }
+
     return NextResponse.json({
-      explanation: data.explanation ?? "",
-      example: data.example ?? "",
-      keyInsight: data.keyInsight ?? "",
-      practiceQuestion: data.practiceQuestion ?? "",
-      answer: data.answer ?? "",
+      explanation: toStr(data.explanation),
+      example: toStr(data.example),
+      keyInsight: toStr(data.keyInsight),
+      practiceQuestion: toStr(data.practiceQuestion),
+      answer: toStr(data.answer),
     });
   } catch (err) {
     console.error(err);
