@@ -74,6 +74,11 @@ function dlSymbol(dl: Deadline) {
 
 function fmt(d: Date) { return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`; }
 
+const COURSE_HEX = [
+  "#7c3aed","#2563eb","#059669","#d97706","#e11d48",
+  "#4f46e5","#0d9488","#ea580c","#db2777","#0891b2",
+];
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
@@ -351,92 +356,81 @@ export default function CalendarPage() {
               </div>
             ) : weeks.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-400">No deadlines found.</div>
-            ) : (
-              <div className="space-y-2">
-                {/* Semester weeks */}
-                {weeks.filter(w => w.weekNum <= SEMESTER_WEEKS).length > 0 && (
-                  <div className="space-y-2">
-                    {weeks.filter(w => w.weekNum <= SEMESTER_WEEKS).map(({ key, weekNum, monday, sunday, deadlines }) => {
-                      const pct = Math.round((deadlines.length / maxCount) * 100);
-                      const barColor = deadlines.length >= 6 ? "bg-red-400" : deadlines.length >= 3 ? "bg-amber-400" : "bg-emerald-400";
-                      return (
-                        <div key={key} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                          <div className="w-24 shrink-0">
-                            <p className="text-sm font-bold text-slate-900">Week {weekNum}</p>
-                            <p className="text-xs text-slate-400">{fmt(monday)} – {fmt(sunday)}</p>
-                          </div>
-                          <div className="flex flex-1 flex-wrap gap-1.5 min-w-0">
-                            {deadlines.map((dl) => {
-                              const c = COURSE_COLORS[courseColorIndex(dl.course)];
-                              const final = isFinalExam(dl);
-                              return (
-                                <div
-                                  key={dl.id}
-                                  title={`${dl.course}: ${dl.title}`}
-                                  className={`flex h-8 w-8 shrink-0 cursor-default select-none items-center justify-center rounded-full border text-sm font-bold ${c.light} ${c.border} ${final ? "text-rose-500" : c.text}`}
-                                >
-                                  {dlSymbol(dl)}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="flex w-48 shrink-0 items-center gap-2">
-                            <div className="flex-1 h-3 overflow-hidden rounded-full bg-slate-100">
-                              <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="w-5 text-right text-xs font-bold text-slate-400">{deadlines.length}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+            ) : (() => {
+              const ROW_H = 80;
+              const G_LEFT = 24;
+              const G_RIGHT = 200;
+              const SYM_R = 13;
+              const SYM_SP = 30;
+              const SVG_W = 560;
+              const totalH = weeks.length * ROW_H;
 
-                {/* Finals period divider + remaining weeks */}
-                {weeks.filter(w => w.weekNum > SEMESTER_WEEKS).map(({ key, weekNum, monday, sunday, deadlines }) => {
-                  const pct = Math.round((deadlines.length / maxCount) * 100);
-                  const barColor = deadlines.length >= 6 ? "bg-red-400" : deadlines.length >= 3 ? "bg-amber-400" : "bg-emerald-400";
-                  return (
-                    <div key={key}>
-                      {weekNum === SEMESTER_WEEKS + 1 && (
-                        <div className="my-4 flex items-center gap-3">
-                          <div className="h-px flex-1 bg-slate-200" />
-                          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Finals Period</span>
-                          <div className="h-px flex-1 bg-slate-200" />
+              const pts = weeks.map((w, i) => {
+                const cx = G_LEFT + (w.deadlines.length / maxCount) * (G_RIGHT - G_LEFT);
+                const n = w.deadlines.length;
+                // Path runs just to the right of the symbol cluster
+                const px = cx + ((n - 1) / 2) * SYM_SP + SYM_R + 14;
+                return { cx, px, cy: i * ROW_H + ROW_H / 2, ...w };
+              });
+
+              let pathD = `M ${pts[0].px} ${pts[0].cy}`;
+              for (let i = 1; i < pts.length; i++) {
+                const a = pts[i - 1], b = pts[i];
+                const my = (a.cy + b.cy) / 2;
+                pathD += ` C ${a.px} ${my} ${b.px} ${my} ${b.px} ${b.cy}`;
+              }
+
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="flex">
+                    {/* Week labels */}
+                    <div className="w-28 shrink-0 border-r border-slate-100">
+                      {weeks.map((w, i) => (
+                        <div key={w.key} style={{ height: ROW_H }} className="flex flex-col justify-center px-4">
+                          <p className="text-sm font-bold text-slate-900">Week {w.weekNum}</p>
+                          <p className="text-xs text-slate-400">{fmt(w.monday)} – {fmt(w.sunday)}</p>
                         </div>
-                      )}
-                      <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                        <div className="w-24 shrink-0">
-                          <p className="text-sm font-bold text-slate-900">Week {weekNum}</p>
-                          <p className="text-xs text-slate-400">{fmt(monday)} – {fmt(sunday)}</p>
-                        </div>
-                        <div className="flex flex-1 flex-wrap gap-1.5 min-w-0">
-                          {deadlines.map((dl) => {
-                            const c = COURSE_COLORS[courseColorIndex(dl.course)];
-                            const final = isFinalExam(dl);
-                            return (
-                              <div
-                                key={dl.id}
-                                title={`${dl.course}: ${dl.title}`}
-                                className={`flex h-8 w-8 shrink-0 cursor-default select-none items-center justify-center rounded-full border text-sm font-bold ${c.light} ${c.border} ${final ? "text-rose-500" : c.text}`}
-                              >
-                                {dlSymbol(dl)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex w-48 shrink-0 items-center gap-2">
-                          <div className="flex-1 h-3 overflow-hidden rounded-full bg-slate-100">
-                            <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="w-5 text-right text-xs font-bold text-slate-400">{deadlines.length}</span>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    {/* SVG graph */}
+                    <div className="flex-1 overflow-x-auto">
+                      <svg width={SVG_W} height={totalH} className="block">
+                        {/* Horizontal row guides */}
+                        {weeks.map((_, i) => (
+                          <line key={i} x1={0} y1={i * ROW_H} x2={SVG_W} y2={i * ROW_H} stroke="#f1f5f9" strokeWidth={1} />
+                        ))}
+
+                        {/* Main path */}
+                        <path d={pathD} fill="none" stroke="#cbd5e1" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+
+                        {/* Symbols at each week */}
+                        {pts.map(({ cx, cy, deadlines, key }) => {
+                          const n = deadlines.length;
+                          return (
+                            <g key={key}>
+                              {deadlines.map((dl, j) => {
+                                const sx = cx - ((n - 1) / 2) * SYM_SP + j * SYM_SP;
+                                const sym = dlSymbol(dl);
+                                const final = isFinalExam(dl);
+                                const color = COURSE_HEX[courseColorIndex(dl.course)];
+                                return (
+                                  <g key={dl.id}>
+                                    <title>{dl.course}: {dl.title}</title>
+                                    <circle cx={sx} cy={cy} r={SYM_R} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} />
+                                    <text x={sx} y={cy} dominantBaseline="central" textAnchor="middle" fontSize={13} fontWeight="bold" fill={final ? "#f43f5e" : color}>{sym}</text>
+                                  </g>
+                                );
+                              })}
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Course key */}
             {courses.length > 0 && (
