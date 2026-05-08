@@ -29,11 +29,12 @@ export default function AddDeadlinePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <div className="border-b border-slate-200 bg-white px-6 py-4 flex items-center gap-4">
+      <div className="border-b border-slate-200 bg-white px-6 py-3 flex items-center gap-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Planari" style={{ height: 32, width: "auto" }} />
         <Link href="/dashboard" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
           ← Dashboard
         </Link>
-        <span className="text-base font-extrabold tracking-tight text-slate-900">Add exam / test</span>
       </div>
 
       <div className="flex flex-1 items-center justify-center px-6 py-16">

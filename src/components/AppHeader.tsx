@@ -31,8 +31,9 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-6">
-        <Link href="/dashboard" className="text-base font-extrabold tracking-tight text-slate-900">
-          Planari
+        <Link href="/dashboard" className="flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Planari" style={{ height: 32, width: "auto" }} />
         </Link>
 
         <nav className="flex items-center gap-0.5">

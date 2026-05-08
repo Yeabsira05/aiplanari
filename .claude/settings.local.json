@@ -22,7 +22,9 @@
       "Bash(npx playwright *)",
       "Bash(node -e ' *)",
       "Bash(del \"C:\\\\Users\\\\bjark\\\\Documents\\\\HrVerkefni\\\\Nyskopum\\\\Github\\\\aiplanari\\\\piazza-login-debug.png\")",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "PowerShell(node -e \"console.log\\('node ok'\\)\")",
+      "Bash(node *)"
     ]
   }
 }

@@ -23,10 +23,10 @@ export default function ConnectCanvasPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {/* Minimal top bar */}
-      <div className="border-b border-slate-200 bg-white px-6 py-4">
-        <Link href="/" className="text-base font-extrabold tracking-tight text-slate-900">
-          Planari
+      <div className="border-b border-slate-200 bg-white px-6 py-3">
+        <Link href="/" className="flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Planari" style={{ height: 32, width: "auto" }} />
         </Link>
       </div>
 
